@@ -74,7 +74,8 @@ class geneticalgorithm():
                                        'mutation_type' : 'single',\
                                        'max_iteration_without_improv':None},\
                      convergence_curve=True,\
-                         progress_bar=True):
+                         progress_bar=True,\
+                            **kwargs):
 
 
         '''
@@ -574,7 +575,7 @@ class geneticalgorithm():
         return x
 ###############################################################################     
     def evaluate(self):
-        return self.f(self.temp)
+        return self.f(self.temp, self.kwargs)
 ###############################################################################    
     def sim(self,X):
         self.temp=X.copy()
