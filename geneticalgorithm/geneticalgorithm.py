@@ -71,6 +71,7 @@ class geneticalgorithm():
                                        'crossover_probability': 0.5,\
                                        'parents_portion': 0.3,\
                                        'crossover_type':'uniform',\
+                                       'mutation_type' : 'single',\
                                        'max_iteration_without_improv':None},\
                      convergence_curve=True,\
                          progress_bar=True):
@@ -115,8 +116,9 @@ class geneticalgorithm():
             @ elit_ration <float in [0,1]>
             @ crossover_probability <float in [0,1]>
             @ parents_portion <float in [0,1]>
-            @ crossover_type <string> - Default is 'uniform'; 'one_point' or 
-            'two_point' are other options
+            @ crossover_type <string> - Default is 'uniform'; 'one_point';
+            'two_point' or 'pmx' are other options
+            @ mutation_type <string> - Default is 'single'; 'inversion' or 'swap' are other options
             @ max_iteration_without_improv <int> - maximum number of 
             successive iterations without improvement. If None it is ineffective
         
@@ -261,8 +263,12 @@ class geneticalgorithm():
         
         self.c_type=self.param['crossover_type']
         assert (self.c_type=='uniform' or self.c_type=='one_point' or\
-                self.c_type=='two_point'),\
-        "\n crossover_type must 'uniform', 'one_point', or 'two_point' Enter string" 
+                self.c_type=='two_point' or self.c_type=='pmx'),\
+        "\n crossover_type must 'uniform', 'one_point', 'two_point', or 'pmx' Enter string" 
+
+        self.m_type=self.param['mutation_type']
+        assert (self.m_type=='single' or self.m_type=='inversion' or self.m_type=='swap'),\
+        "\n mutation_type must 'single', 'inversion', or 'swap' Enter string"
         
         
         self.stop_mniwi=False
@@ -397,8 +403,9 @@ class geneticalgorithm():
                 ch1=ch[0].copy()
                 ch2=ch[1].copy()
                 
-                ch1=self.mut(ch1)
-                ch2=self.mutmidle(ch2,pvar1,pvar2)               
+                ch1=self.mut(ch1, self.m_type)
+                # ch2=self.mutmidle(ch2,pvar1,pvar2)     
+                ch2=self.mut(ch2, self.m_type)          
                 solo[: self.dim]=ch1.copy()                
                 obj=self.sim(ch1)
                 solo[self.dim]=obj
@@ -460,15 +467,30 @@ class geneticalgorithm():
          
         ofs1=x.copy()
         ofs2=y.copy()
-        
 
-        if c_type=='one_point':
+        if c_type=='pmx':
+
+            start, end = sorted(np.random.choice(self.dim, 2, replace=False))
+            ofs1[start:end+1] = y[start:end+1].copy()
+            ofs2[start:end+1] = x[start:end+1].copy()
+            for i in range(0, self.dim):
+                if i < start or i > end:
+                    while ofs1[i] in ofs1[start:end+1]:
+                        tmp = np.where(ofs1[start:end+1] == ofs1[i])[0][0] + start
+                        ofs1[i] = ofs2[tmp]
+
+                    while ofs2[i] in ofs2[start:end+1]:
+                        tmp = np.where(ofs2[start:end+1] == ofs2[i])[0][0] + start
+                        ofs2[i] = ofs1[tmp]
+
+        elif c_type=='one_point':
+
             ran=np.random.randint(0,self.dim)
             for i in range(0,ran):
                 ofs1[i]=y[i].copy()
                 ofs2[i]=x[i].copy()
-  
-        if c_type=='two_point':
+
+        elif c_type=='two_point':
                 
             ran1=np.random.randint(0,self.dim)
             ran2=np.random.randint(ran1,self.dim)
@@ -476,8 +498,7 @@ class geneticalgorithm():
             for i in range(ran1,ran2):
                 ofs1[i]=y[i].copy()
                 ofs2[i]=x[i].copy()
-            
-        if c_type=='uniform':
+        elif c_type=='uniform':
                 
             for i in range(0, self.dim):
                 ran=np.random.random()
@@ -488,20 +509,30 @@ class geneticalgorithm():
         return np.array([ofs1,ofs2])
 ###############################################################################  
     
-    def mut(self,x):
-        
-        for i in self.integers[0]:
-            ran=np.random.random()
-            if ran < self.prob_mut:
+    def mut(self,x,m_type):
+        ran=np.random.random()
+        if ran < self.prob_mut:
+            if m_type=='inversion':
                 
-                x[i]=np.random.randint(self.var_bound[i][0],\
-                 self.var_bound[i][1]+1) 
-                    
-        
+                start, end = sorted(np.random.choice(self.dim, 2, replace=False))
+                x[start:end+1] = x[start:end+1][::-1]
 
-        for i in self.reals[0]:                
-            ran=np.random.random()
-            if ran < self.prob_mut:   
+            elif m_type=='swap':
+
+                idx1, idx2 = sorted(np.random.choice(self.dim, 2, replace=False))
+                x[idx1], x[idx2] = x[idx2], x[idx1]
+
+            elif m_type=='single':
+
+                for i in self.integers[0]:
+                    ran=np.random.random()
+                    if ran < self.prob_mut:
+                        x[i]=np.random.randint(self.var_bound[i][0],self.var_bound[i][1]+1) 
+
+                for i in self.reals[0]:                
+                    ran=np.random.random()
+                    if ran < self.prob_mut:   
+                        x[i]=self.var_bound[i][0]+np.random.random()*(self.var_bound[i][1]-self.var_bound[i][0])  
 
                x[i]=self.var_bound[i][0]+np.random.random()*\
                 (self.var_bound[i][1]-self.var_bound[i][0])    
