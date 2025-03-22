@@ -277,6 +277,11 @@ class geneticalgorithm():
         else: 
             self.mniwi=int(self.param['max_iteration_without_improv'])
 
+        #############################################################
+
+    def check_duplicates(self, x):
+        return len(x) == len(set(x))
+
         
         ############################################################# 
     def run(self):
@@ -295,15 +300,18 @@ class geneticalgorithm():
         var=np.zeros(self.dim)       
         
         for p in range(0,self.pop_s):
+            var = np.random.permutation(196) + 1
+            solo[:self.dim] = var.copy()
+            assert(self.check_duplicates(var)), "gene shouldn't be duplicated." 
          
-            for i in self.integers[0]:
-                var[i]=np.random.randint(self.var_bound[i][0],\
-                        self.var_bound[i][1]+1)  
-                solo[i]=var[i].copy()
-            for i in self.reals[0]:
-                var[i]=self.var_bound[i][0]+np.random.random()*\
-                (self.var_bound[i][1]-self.var_bound[i][0])    
-                solo[i]=var[i].copy()
+            # for i in self.integers[0]:
+            #     var[i]=np.random.randint(self.var_bound[i][0],\
+            #             self.var_bound[i][1]+1)  
+            #     solo[i]=var[i].copy()
+            # for i in self.reals[0]:
+            #     var[i]=self.var_bound[i][0]+np.random.random()*\
+            #     (self.var_bound[i][1]-self.var_bound[i][0])    
+            #     solo[i]=var[i].copy()
 
 
             obj=self.sim(var)            
@@ -438,7 +446,7 @@ class geneticalgorithm():
         # Report
 
         self.report.append(pop[0,self.dim])
-        
+
         
  
         
@@ -505,6 +513,9 @@ class geneticalgorithm():
                 if ran <0.5:
                     ofs1[i]=y[i].copy()
                     ofs2[i]=x[i].copy() 
+        
+        assert(self.check_duplicates(ofs1)), "gene shouldn't be duplicated." 
+        assert(self.check_duplicates(ofs2)), "gene shouldn't be duplicated." 
                    
         return np.array([ofs1,ofs2])
 ###############################################################################  
@@ -534,8 +545,7 @@ class geneticalgorithm():
                     if ran < self.prob_mut:   
                         x[i]=self.var_bound[i][0]+np.random.random()*(self.var_bound[i][1]-self.var_bound[i][0])  
 
-               x[i]=self.var_bound[i][0]+np.random.random()*\
-                (self.var_bound[i][1]-self.var_bound[i][0])    
+        assert(self.check_duplicates(x)), "gene shouldn't be duplicated."                  
             
         return x
 ###############################################################################
