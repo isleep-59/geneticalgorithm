@@ -278,6 +278,9 @@ class geneticalgorithm():
         else: 
             self.mniwi=int(self.param['max_iteration_without_improv'])
 
+        
+        self.kwargs=kwargs
+
         #############################################################
 
     def check_duplicates(self, x):
