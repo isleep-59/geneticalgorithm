@@ -304,7 +304,7 @@ class geneticalgorithm():
         var=np.zeros(self.dim)       
         
         for p in range(0,self.pop_s):
-            var = np.random.permutation(196) + 1
+            var = np.random.permutation(196)
             solo[:self.dim] = var.copy()
             assert(self.check_duplicates(var)), "gene shouldn't be duplicated." 
          
