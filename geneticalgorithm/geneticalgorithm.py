@@ -73,6 +73,7 @@ class geneticalgorithm():
                                        'parents_portion': 0.3,\
                                        'crossover_type':'uniform',\
                                        'mutation_type' : 'single',\
+                                       'init_type':'random',\
                                        'max_iteration_without_improv':None},\
                      convergence_curve=True,\
                          progress_bar=True,\
@@ -123,6 +124,7 @@ class geneticalgorithm():
             @ crossover_type <string> - Default is 'uniform'; 'one_point';
             'two_point' or 'pmx' are other options
             @ mutation_type <string> - Default is 'single'; 'inversion' or 'swap' are other options
+            @ init_type <string> - Default is 'random'; 'sequential' is the other option
             @ max_iteration_without_improv <int> - maximum number of 
             successive iterations without improvement. If None it is ineffective
         
@@ -273,7 +275,10 @@ class geneticalgorithm():
         self.m_type=self.param['mutation_type']
         assert (self.m_type=='single' or self.m_type=='inversion' or self.m_type=='swap'),\
         "\n mutation_type must 'single', 'inversion', or 'swap' Enter string"
-        
+
+        self.init_type=self.param['init_type']
+        assert (self.init_type=='random' or self.init_type=='sequential'),\
+        "\n init_type must 'random' or 'sequential' Enter string"
         
         self.stop_mniwi=False
         if self.param['max_iteration_without_improv']==None:
@@ -309,7 +314,10 @@ class geneticalgorithm():
         var=np.zeros(self.dim)       
         
         for p in range(0,self.pop_s):
-            var = np.random.permutation(196)
+            if self.init_type == 'random':
+                var = np.random.permutation(196)
+            elif self.init_type == 'sequential':
+                var = np.arange(196)
             solo[:self.dim] = var.copy()
             assert(self.check_duplicates(var)), "gene shouldn't be duplicated." 
          
