@@ -31,6 +31,7 @@ import sys
 import time
 from func_timeout import func_timeout, FunctionTimedOut
 import matplotlib.pyplot as plt
+import os
 
 ###############################################################################
 ###############################################################################
@@ -75,6 +76,8 @@ class geneticalgorithm():
                                        'max_iteration_without_improv':None},\
                      convergence_curve=True,\
                          progress_bar=True,\
+                         log_limit=10,\
+                         log_directory=None,\
                             **kwargs):
 
 
@@ -280,6 +283,8 @@ class geneticalgorithm():
 
         
         self.kwargs=kwargs
+        self.log_limit = log_limit
+        self.log_directory = log_directory
 
         #############################################################
 
@@ -327,6 +332,7 @@ class geneticalgorithm():
         #############################################################
         # Report
         self.report=[]
+        self.log=[]
         self.test_obj=obj
         self.best_variable=var.copy()
         self.best_function=obj
@@ -341,9 +347,7 @@ class geneticalgorithm():
             #############################################################
             #Sort
             pop = pop[pop[:,self.dim].argsort()]
-
-                
-            
+                          
             if pop[0,self.dim]<self.best_function:
                 counter=0
                 self.best_function=pop[0,self.dim].copy()
@@ -354,7 +358,10 @@ class geneticalgorithm():
             # Report
 
             self.report.append(pop[0,self.dim])
-    
+            self.log.append(pop)
+
+            re=np.array(self.report)
+            self.write_log(re)
             ##############################################################         
             # Normalizing objective function 
             
@@ -450,25 +457,19 @@ class geneticalgorithm():
         # Report
 
         self.report.append(pop[0,self.dim])
-
+        self.log.append(pop)
         
  
-        
         self.output_dict={'variable': self.best_variable, 'function':\
                           self.best_function}
         if self.progress_bar==True:
             show=' '*100
             sys.stdout.write('\r%s' % (show))
-        sys.stdout.write('\r The best solution found:\n %s' % (self.best_variable))
-        sys.stdout.write('\n\n Objective function:\n %s\n' % (self.best_function))
+        # sys.stdout.write('\r The best solution found:\n %s' % (self.best_variable))
+        # sys.stdout.write('\n\n Objective function:\n %s\n' % (self.best_function))
         sys.stdout.flush() 
         re=np.array(self.report)
-        if self.convergence_curve==True:
-            plt.plot(re)
-            plt.xlabel('Iteration')
-            plt.ylabel('Objective function')
-            plt.title('Genetic Algorithm')
-            plt.show()
+        self.write_log(re)
         
         if self.stop_mniwi==True:
             sys.stdout.write('\nWarning: GA is terminated due to the'+\
@@ -601,8 +602,39 @@ class geneticalgorithm():
 
         sys.stdout.write('\r%s %s%s %s' % (bar, percents, '%', status))
         sys.stdout.flush()     
-###############################################################################            
+###############################################################################         
+    def write_log(self, re):
+        # dir_name = f'{self.init_type}_{self.current_time}'
+        # dir_path = f'/workspace/Order-Matters/Vision-RWKV/classification/ga4order_logs/{dir_name}'
+        dir_path = f'{self.log_directory}'
+        os.makedirs(dir_path, exist_ok=True)
+        
+        if self.convergence_curve==True:
+            plt.plot(re)
+            plt.xlabel('Iteration')
+            plt.ylabel('Objective function')
+            plt.title('Genetic Algorithm')
+            # plt.show()
+            plt.savefig(f'{dir_path}/convergence_curve.png')
+            plt.clf()
+
+        np.savetxt(f'{dir_path}/best_solution.npy', self.best_variable)
+        with open(f'{dir_path}/log.txt', 'w') as f:
+            f.write('The best solution found:\n %s\n\n Objective function:\n %s\n\n' % (self.best_variable, self.best_function))
+            idx = 0
+            for item in self.log:
+                f.write(f'Generation {idx}: {item[0, self.dim]}\n')
+
+                limit = 0
+                for i in item:
+                    if(limit < self.log_limit):
+                        # f.write("%s\n" % i)
+                        f.write(f'\tsolution {limit+1}: {i[self.dim]}\n')
+                        f.write(f'\t')
+                        np.savetxt(f, i[:self.dim].reshape(1, -1), fmt='%d', delimiter=',')
+                        f.write('\n')
+                    limit += 1
+                idx += 1
+                f.write('\n')
+            f.write('\n')
 ###############################################################################
-            
-            
-            
