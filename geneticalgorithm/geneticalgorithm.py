@@ -466,10 +466,14 @@ class geneticalgorithm():
 
         self.report.append(pop[0,self.dim])
         self.log.append(pop)
+        valid_solutions = self.get_valid_solutions(self.log, threshold=0.7, num_inter=10)
         
  
-        self.output_dict={'variable': self.best_variable, 'function':\
-                          self.best_function}
+        self.output_dict={'variable': self.best_variable,\
+                          'function':self.best_function,\
+                          'fitness_per_inter':self.report,\
+                          'valid_solutions':valid_solutions}
+                                
         if self.progress_bar==True:
             show=' '*100
             sys.stdout.write('\r%s' % (show))
@@ -610,7 +614,23 @@ class geneticalgorithm():
 
         sys.stdout.write('\r%s %s%s %s' % (bar, percents, '%', status))
         sys.stdout.flush()     
-###############################################################################         
+###############################################################################
+    def get_valid_solutions(self,results, threshold=0.7,num_inter=10):
+        """
+        获取有效的解决方案
+        - results: 结果列表
+        - threshold: 阈值
+        - num_inter: 选取代数
+        """
+        valid_solutions = []
+        num=min(len(results), num_inter)
+        for i in range(1, num+1):
+            pop=results[-i]
+            for p in pop:
+                if p[self.dim] < threshold:
+                    valid_solutions.append(p[0:self.dim])
+        return valid_solutions
+###############################################################################       
     def write_log(self, re):
         # dir_name = f'{self.init_type}_{self.current_time}'
         # dir_path = f'/workspace/Order-Matters/Vision-RWKV/classification/ga4order_logs/{dir_name}'
@@ -626,7 +646,9 @@ class geneticalgorithm():
             plt.savefig(f'{dir_path}/convergence_curve.png')
             plt.clf()
 
-        np.savetxt(f'{dir_path}/best_solution.npy', self.best_variable)
+        # np.savetxt(f'{dir_path}/best_solution.npy', self.best_variable)
+        np.save(f'{dir_path}/best_solution.npy', self.best_variable)
+        np.save(f'{dir_path}/valid_solutin.npy',np.unique(np.array(self.get_valid_solutions(self.log, threshold=0.7, num_inter=10)),axis=0))
         with open(f'{dir_path}/log.txt', 'w') as f:
             f.write('The best solution found:\n %s\n\n Objective function:\n %s\n\n' % (self.best_variable, self.best_function))
             idx = 0
