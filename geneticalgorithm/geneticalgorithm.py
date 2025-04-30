@@ -37,6 +37,19 @@ import os
 ###############################################################################
 ###############################################################################
 
+
+def evaluate_individuals(args):
+    """Helper function for parallel evaluation."""
+    individuals, func, timeout, f_kwargs = args
+    results = func_timeout(timeout, func, args=(individuals, f_kwargs)) 
+    return results
+
+def evaluate_individual(args):
+    """Non Concurrent version of evaluate_individuals."""
+    individual, func, timeout, f_kwargs = args
+    result = func_timeout(timeout, func, args=(individual, f_kwargs)) 
+    return result
+
 class geneticalgorithm():
     
     '''  Genetic Algorithm (Elitist version) for Python
@@ -74,7 +87,9 @@ class geneticalgorithm():
                                        'crossover_type':'uniform',\
                                        'mutation_type' : 'single',\
                                        'init_type':'random',\
-                                       'max_iteration_without_improv':None},\
+                                       'max_iteration_without_improv':None,\
+                                        'improvement_threshold': 0.01,\
+                                        'concurrent_processes': False},\
                      convergence_curve=True,\
                          progress_bar=True,\
                          log_limit=10,\
@@ -127,6 +142,8 @@ class geneticalgorithm():
             @ init_type <string> - Default is 'random'; 'sequential' is the other option
             @ max_iteration_without_improv <int> - maximum number of 
             successive iterations without improvement. If None it is ineffective
+            @ improvement_threshold <float> - the threshold of improvement. If None it is ineffective
+            @ concurrent_processes <True/False> - whether to use concurrent processes for function evaluation. Default is False.
         
         @param convergence_curve <True/False> - Plot the convergence curve or not
         Default is True.
@@ -286,6 +303,8 @@ class geneticalgorithm():
         else: 
             self.mniwi=int(self.param['max_iteration_without_improv'])
 
+        self.threshold=self.param['improvement_threshold']
+        self.is_concurrent_processes = algorithm_parameters.get('concurrent_processes')
         
         self.kwargs=kwargs
         self.log_limit = log_limit
@@ -311,15 +330,21 @@ class geneticalgorithm():
         
         pop=np.array([np.zeros(self.dim+1)]*self.pop_s)
         solo=np.zeros(self.dim+1)
-        var=np.zeros(self.dim)       
-        
+        var=np.zeros(self.dim)
+        initial_population_vars = []
+
         for p in range(0,self.pop_s):
-            if self.init_type == 'random':
-                var = np.random.permutation(196)
-            elif self.init_type == 'sequential':
+            # if self.init_type == 'random':
+            #     var = np.random.permutation(196)
+            # elif self.init_type == 'sequential':
+            #     var = np.arange(196)
+            if p == 0 and self.init_type == 'sequential':
                 var = np.arange(196)
+            else:
+                var = np.random.permutation(196)
             solo[:self.dim] = var.copy()
-            assert(self.check_duplicates(var)), "gene shouldn't be duplicated." 
+            # assert(self.check_duplicates(var)), "gene shouldn't be duplicated." 
+            initial_population_vars.append(var.copy())
          
             # for i in self.integers[0]:
             #     var[i]=np.random.randint(self.var_bound[i][0],\
@@ -331,19 +356,35 @@ class geneticalgorithm():
             #     solo[i]=var[i].copy()
 
 
-            obj=self.sim(var)            
-            solo[self.dim]=obj
-            pop[p]=solo.copy()
+            # obj=self.sim(var)            
+            # solo[self.dim]=obj
+            # pop[p]=solo.copy()
 
+        # tasks = [(var, self.f, self.funtimeout, self.kwargs) for var in initial_population_vars]
+        # if self.is_concurrent_processes:    
+        #     with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor: 
+        #         results = list(executor.map(evaluate_individual, tasks))
+        # else:
+        #     results = [evaluate_individual(task) for task in tasks]
+        if self.is_concurrent_processes:
+            tasks = (initial_population_vars, self.f, self.funtimeout, self.kwargs)
+            results = evaluate_individuals(tasks).cpu().numpy().tolist()
+        else:
+            tasks = [(var, self.f, self.funtimeout, self.kwargs) for var in initial_population_vars]
+            results = [evaluate_individual(task) for task in tasks]
+
+        for p in range(self.pop_s):
+            pop[p, :self.dim] = initial_population_vars[p]
+            pop[p, self.dim] = results[p]
         #############################################################
 
         #############################################################
         # Report
         self.report=[]
         self.log=[]
-        self.test_obj=obj
-        self.best_variable=var.copy()
-        self.best_function=obj
+        pop = pop[pop[:,self.dim].argsort()]
+        self.best_variable = pop[0,: self.dim].copy()
+        self.best_function = pop[0,self.dim]
         ##############################################################   
                         
         t=1
@@ -415,12 +456,10 @@ class geneticalgorithm():
     
             #############################################################  
             #New generation
-            pop=np.array([np.zeros(self.dim+1)]*self.pop_s)
-            
-            for k in range(0,self.par_s):
-                pop[k]=par[k].copy()
-                
-            for k in range(self.par_s, self.pop_s, 2):
+            offspring_vars = []
+            num_offspring_to_generate = self.pop_s - self.par_s
+            current_offspring_count = 0
+            while current_offspring_count < num_offspring_to_generate:
                 r1=np.random.randint(0,par_count)
                 r2=np.random.randint(0,par_count)
                 pvar1=ef_par[r1,: self.dim].copy()
@@ -430,17 +469,64 @@ class geneticalgorithm():
                 ch1=ch[0].copy()
                 ch2=ch[1].copy()
                 
-                ch1=self.mut(ch1, self.m_type)
-                # ch2=self.mutmidle(ch2,pvar1,pvar2)     
-                ch2=self.mut(ch2, self.m_type)          
-                solo[: self.dim]=ch1.copy()                
-                obj=self.sim(ch1)
-                solo[self.dim]=obj
-                pop[k]=solo.copy()                
-                solo[: self.dim]=ch2.copy()                
-                obj=self.sim(ch2)               
-                solo[self.dim]=obj
-                pop[k+1]=solo.copy()
+                ch1=self.mut(ch1, self.m_type)   
+                ch2=self.mut(ch2, self.m_type)
+
+                offspring_vars.append(ch1)
+                current_offspring_count += 1
+                if current_offspring_count < num_offspring_to_generate:
+                    offspring_vars.append(ch2)
+                    current_offspring_count += 1
+
+            # tasks = [(var, self.f, self.funtimeout, self.kwargs) for var in offspring_vars]
+            # if self.is_concurrent_processes:
+            #     with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+            #         results = list(executor.map(evaluate_individual, tasks))
+            # else:
+            #     results = [evaluate_individual(task) for task in tasks]
+            if self.is_concurrent_processes:
+                tasks = (offspring_vars, self.f, self.funtimeout, self.kwargs)
+                results = evaluate_individuals(tasks).cpu().numpy().tolist()
+            else:
+                tasks = [(var, self.f, self.funtimeout, self.kwargs) for var in offspring_vars]
+                results = [evaluate_individual(task) for task in tasks]
+
+            new_pop=np.array([np.zeros(self.dim+1)]*self.pop_s)
+            for k in range(self.par_s):
+                new_pop[k] = par[k].copy()
+
+            for k in range(len(offspring_vars)):
+                new_pop[self.par_s + k, :self.dim] = offspring_vars[k]
+                new_pop[self.par_s + k, self.dim] = results[k]
+                 
+            pop = new_pop
+
+            # pop=np.array([np.zeros(self.dim+1)]*self.pop_s)
+            
+            # for k in range(0,self.par_s):
+            #     pop[k]=par[k].copy()
+                
+            # for k in range(self.par_s, self.pop_s, 2):
+            #     r1=np.random.randint(0,par_count)
+            #     r2=np.random.randint(0,par_count)
+            #     pvar1=ef_par[r1,: self.dim].copy()
+            #     pvar2=ef_par[r2,: self.dim].copy()
+                
+            #     ch=self.cross(pvar1,pvar2,self.c_type)
+            #     ch1=ch[0].copy()
+            #     ch2=ch[1].copy()
+                
+            #     ch1=self.mut(ch1, self.m_type)
+            #     # ch2=self.mutmidle(ch2,pvar1,pvar2)     
+            #     ch2=self.mut(ch2, self.m_type)          
+            #     solo[: self.dim]=ch1.copy()                
+            #     obj=self.sim(ch1)
+            #     solo[self.dim]=obj
+            #     pop[k]=solo.copy()                
+            #     solo[: self.dim]=ch2.copy()                
+            #     obj=self.sim(ch2)               
+            #     solo[self.dim]=obj
+            #     pop[k+1]=solo.copy()
         #############################################################       
             t+=1
             if counter > self.mniwi:
@@ -452,6 +538,18 @@ class geneticalgorithm():
                     time.sleep(2)
                     t+=1
                     self.stop_mniwi=True
+
+            # if no significant improvement in the last mniwi iterations
+            # if np.size(self.report) >= self.mniwi and pop[0,self.dim] > self.report[-(self.mniwi-1)] - self.threshold:
+            #     pop = pop[pop[:,self.dim].argsort()]
+            #     if pop[0,self.dim]>=self.best_function:
+            #         t=self.iterate
+            #         if self.progress_bar==True:
+            #             self.progress(t,self.iterate,status="GA is running...")
+            #         time.sleep(2)
+            #         t+=1
+            #         self.stop_mniwi=True
+                
                 
         #############################################################
         #Sort
